@@ -99,10 +99,14 @@ jobs:
           BUILD_STATUS=0
           if command -v observer &> /dev/null; then
             echo "Building with observer SBOM..."
-            # observer build: -b for SBOM output, -u for user
+            echo "Checking observer help for eBPF options..."
+            observer build --help 2>&1 | grep -E "ebpf|eBPF|instrumentation" || echo "No specific eBPF flag needed"
+            
+            # observer build: -b for SBOM output, -l for license
+            # eBPF is used by default for system call tracing
             sudo observer build \
               -b sbom.cdx.json \
-              -u runner \
+              -l \
               -- ${{ env.PIO_PATH }} run -e m5stick-c || BUILD_STATUS=$?
           else
             echo "observer-cli not available, building without SBOM wrapper..."
