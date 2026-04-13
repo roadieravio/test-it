@@ -91,8 +91,8 @@ jobs:
           # Build firmware with observer SBOM
           if command -v observer &> /dev/null; then
             echo "Building with observer SBOM..."
-            # Use python -m platformio to ensure PATH is correct when running under observer
-            observer build \
+            # observer build requires root; use sudo with python -m platformio
+            sudo observer build \
               --user runner \
               --sbom sbom.cdx.json \
               -- python -m platformio run -e m5stick-c
