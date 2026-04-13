@@ -99,9 +99,10 @@ jobs:
           BUILD_STATUS=0
           if command -v observer &> /dev/null; then
             echo "Building with observer SBOM..."
-            # observer build requires root; use full path to pio
+            # observer build: -b for SBOM output, -u for user
             sudo observer build \
-              --sbom sbom.cdx.json \
+              -b sbom.cdx.json \
+              -u runner \
               -- ${{ env.PIO_PATH }} run -e m5stick-c || BUILD_STATUS=$?
           else
             echo "observer-cli not available, building without SBOM wrapper..."
@@ -119,8 +120,19 @@ jobs:
       - name: Verify build artifacts
         if: success()
         run: |
-          ls -lh .pio/build/m5stick-c/firmware.bin || echo "Firmware not found"
-          ls -lh sbom.cdx.json 2>/dev/null || echo "SBOM not generated"
+          echo "=== Build Artifacts ==="
+          ls -lh .pio/build/m5stick-c/firmware.bin || echo "✗ Firmware not found"
+          echo ""
+          echo "=== SBOM Output ==="
+          if [ -f sbom.cdx.json ]; then
+            echo "✓ sbom.cdx.json generated:"
+            wc -c sbom.cdx.json
+            echo "Sample (first 30 lines):"
+            head -30 sbom.cdx.json
+          else
+            echo "✗ sbom.cdx.json not found"
+            ls -la | grep sbom || echo "No SBOM files at all"
+          fi
 
       # ⚠️ CRITICAL: Clean up any sensitive files before uploads
       - name: Clean up sensitive files
