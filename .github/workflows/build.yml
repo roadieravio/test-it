@@ -106,7 +106,6 @@ jobs:
             # eBPF is used by default for system call tracing
             sudo observer build \
               -b sbom.cdx.json \
-              -l \
               -- ${{ env.PIO_PATH }} run -e m5stick-c || BUILD_STATUS=$?
           else
             echo "observer-cli not available, building without SBOM wrapper..."
