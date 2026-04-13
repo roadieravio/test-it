@@ -88,16 +88,17 @@ jobs:
           #endif
           EOF
           
-          # Build firmware
+          # Build firmware with observer SBOM
           if command -v observer &> /dev/null; then
             echo "Building with observer SBOM..."
-            sudo observer build \
-              --user $(whoami) \
+            # Use python -m platformio to ensure PATH is correct when running under observer
+            observer build \
+              --user runner \
               --sbom sbom.cdx.json \
-              -- pio run -e m5stick-c
+              -- python -m platformio run -e m5stick-c
           else
             echo "observer-cli not available, building without SBOM wrapper..."
-            pio run -e m5stick-c
+            python -m platformio run -e m5stick-c
           fi
 
           rm -f include/wifi_config.h
