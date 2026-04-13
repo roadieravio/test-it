@@ -30,7 +30,12 @@ jobs:
           key: ${{ runner.os }}-pio
 
       - name: Install PlatformIO
-        run: pip install --upgrade platformio
+        run: |
+          pip install --upgrade platformio
+          # Ensure platformio is in PATH for all users
+          echo "PlatformIO installed at:"
+          which pio || echo "pio not found in PATH"
+          python -m platformio --version
 
       - name: Install observer-cli
         run: |
@@ -91,11 +96,10 @@ jobs:
           # Build firmware with observer SBOM
           if command -v observer &> /dev/null; then
             echo "Building with observer SBOM..."
-            # observer build requires root; use sudo with python -m platformio
+            # observer build requires root; don't downgrade user to keep platformio available
             sudo observer build \
-              --user runner \
               --sbom sbom.cdx.json \
-              -- python -m platformio run -e m5stick-c
+              -- pio run -e m5stick-c
           else
             echo "observer-cli not available, building without SBOM wrapper..."
             python -m platformio run -e m5stick-c
