@@ -1,0 +1,92 @@
+name: PlatformIO Build + SBOM (Secure)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+jobs:
+  build-with-sbom:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.platformio/.cache
+          key: ${{ runner.os }}-pio
+
+      - name: Install PlatformIO
+        run: pip install --upgrade platformio
+
+      - name: Install observer-cli
+        run: |
+          OBSERVER_VERSION=$(curl -s https://api.github.com/repos/sbom-observer/observer-cli/releases/latest | grep '"tag_name"' | cut -d'"' -f4)
+          curl -L "https://github.com/sbom-observer/observer-cli/releases/download/${OBSERVER_VERSION}/observer-cli-linux-x86_64" \
+            -o /tmp/observer
+          sudo chmod +x /tmp/observer
+          sudo mv /tmp/observer /usr/local/bin/observer
+
+      # ✅ SECURE: Pass secrets as environment variables
+      # They are automatically masked in logs
+      - name: Build with SBOM
+        env:
+          # These secrets are injected at runtime
+          # GitHub automatically masks them in logs (even if accidentally printed)
+          WIFI_SSID: ${{ secrets.WIFI_SSID }}
+          WIFI_PASS: ${{ secrets.WIFI_PASS }}
+          WIFI_USER: ${{ secrets.WIFI_USER }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Create a temporary header file with secrets
+          # This file is NOT committed to git
+          cat > include/wifi_config.h << 'EOF'
+          #ifndef WIFI_CONFIG_H
+          #define WIFI_CONFIG_H
+          
+          #define WIFI_SSID "${{ env.WIFI_SSID }}"
+          #define WIFI_PASS "${{ env.WIFI_PASS }}"
+          #define WIFI_USER "${{ env.WIFI_USER }}"
+          #define GITHUB_TOKEN "${{ env.GITHUB_TOKEN }}"
+          
+          #endif
+          EOF
+          
+          # Build firmware
+          sudo observer build \
+            --user $(whoami) \
+            --sbom sbom.cdx.json \
+            -- pio run -e m5stick-c
+
+          rm -f include/wifi_config.h
+
+      # ✅ SAFE: Verify build succeeded before uploading
+      - name: Verify build artifacts
+        if: success()
+        run: |
+          ls -lh .pio/build/m5stick-c/firmware.bin
+          ls -lh sbom.cdx.json
+
+
+      # ⚠️ IMPORTANT: Don't upload sensitive files
+      - name: Upload SBOM only
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.cdx.json
+
+      
+      

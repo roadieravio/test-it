@@ -5,3 +5,8 @@
 .vscode/c_cpp_properties.json
 .vscode/launch.json
 .vscode/ipch
+
+# Secrets and credentials (never commit)
+.env
+src/.env
+include/wifi_config.h
