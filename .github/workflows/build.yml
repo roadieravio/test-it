@@ -36,7 +36,6 @@ jobs:
         run: |
           echo "Fetching latest observer-cli release..."
           RELEASES_JSON=$(curl -s https://api.github.com/repos/sbom-observer/observer-cli/releases/latest)
-          echo "Releases JSON: $RELEASES_JSON"
           
           OBSERVER_VERSION=$(echo "$RELEASES_JSON" | grep '"tag_name"' | head -1 | cut -d'"' -f4)
           echo "Detected version: $OBSERVER_VERSION"
@@ -46,19 +45,22 @@ jobs:
             exit 1
           fi
           
-          DOWNLOAD_URL="https://github.com/sbom-observer/observer-cli/releases/download/${OBSERVER_VERSION}/observer-cli-linux-x86_64"
+          # Extract version number without 'v' prefix
+          VERSION_NUMBER=${OBSERVER_VERSION#v}
+          
+          # Download .deb package for Ubuntu/Linux
+          DOWNLOAD_URL="https://github.com/sbom-observer/observer-cli/releases/download/${OBSERVER_VERSION}/observer_${VERSION_NUMBER}_amd64.deb"
           echo "Download URL: $DOWNLOAD_URL"
           
-          curl -L -f --max-time 30 "$DOWNLOAD_URL" -o /tmp/observer
+          curl -L -f --max-time 30 "$DOWNLOAD_URL" -o /tmp/observer.deb
           
-          if [ ! -f /tmp/observer ] || [ ! -s /tmp/observer ]; then
+          if [ ! -f /tmp/observer.deb ] || [ ! -s /tmp/observer.deb ]; then
             echo "ERROR: Failed to download observer-cli"
-            echo "File size: $([ -f /tmp/observer ] && stat -c%s /tmp/observer || echo 'FILE NOT FOUND')"
+            echo "File size: $([ -f /tmp/observer.deb ] && stat -c%s /tmp/observer.deb || echo 'FILE NOT FOUND')"
             exit 1
           fi
           
-          sudo chmod +x /tmp/observer
-          sudo mv /tmp/observer /usr/local/bin/observer
+          sudo dpkg -i /tmp/observer.deb
           observer --version
 
       # ✅ SECURE: Pass secrets as environment variables
