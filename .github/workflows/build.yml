@@ -32,10 +32,12 @@ jobs:
       - name: Install PlatformIO
         run: |
           pip install --upgrade platformio
-          # Ensure platformio is in PATH for all users
-          echo "PlatformIO installed at:"
-          which pio || echo "pio not found in PATH"
-          python -m platformio --version
+          # Get the full path to pio binary
+          PIO_PATH=$(which pio)
+          echo "PlatformIO installed at: $PIO_PATH"
+          $PIO_PATH --version
+          # Set PATH for use in later steps
+          echo "PIO_PATH=$PIO_PATH" >> $GITHUB_ENV
 
       - name: Install observer-cli
         run: |
@@ -94,18 +96,24 @@ jobs:
           EOF
           
           # Build firmware with observer SBOM
+          BUILD_STATUS=0
           if command -v observer &> /dev/null; then
             echo "Building with observer SBOM..."
-            # observer build requires root; don't downgrade user to keep platformio available
+            # observer build requires root; use full path to pio
             sudo observer build \
               --sbom sbom.cdx.json \
-              -- pio run -e m5stick-c
+              -- ${{ env.PIO_PATH }} run -e m5stick-c || BUILD_STATUS=$?
           else
             echo "observer-cli not available, building without SBOM wrapper..."
-            python -m platformio run -e m5stick-c
+            ${{ env.PIO_PATH }} run -e m5stick-c || BUILD_STATUS=$?
           fi
 
+          # Always clean up sensitive file before next step
+          echo "Cleaning up sensitive files..."
           rm -f include/wifi_config.h
+          
+          # Return build status
+          exit $BUILD_STATUS
 
       # ✅ SAFE: Verify build succeeded before uploading
       - name: Verify build artifacts
@@ -113,6 +121,14 @@ jobs:
         run: |
           ls -lh .pio/build/m5stick-c/firmware.bin || echo "Firmware not found"
           ls -lh sbom.cdx.json 2>/dev/null || echo "SBOM not generated"
+
+      # ⚠️ CRITICAL: Clean up any sensitive files before uploads
+      - name: Clean up sensitive files
+        if: always()
+        run: |
+          echo "Ensuring no sensitive files remain..."
+          rm -f include/wifi_config.h
+          echo "Sensitive files cleaned"
 
       # ⚠️ IMPORTANT: Don't upload sensitive files
       - name: Upload firmware
