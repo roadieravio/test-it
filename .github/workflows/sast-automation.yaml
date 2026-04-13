@@ -1,0 +1,51 @@
+on:
+  # Trigger analysis when pushing to your main branches, and when creating a pull request.
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+name: SAST Analysis
+jobs:
+  semgrep:
+    name: semgrep-oss/scan
+    runs-on: ubuntu-latest
+
+    container:
+      image: semgrep/semgrep
+
+    # Skip dependabot PRs
+    if: (github.actor != 'dependabot[bot]')
+
+    steps:
+      # 1. Checkout source code
+      - uses: actions/checkout@v4
+
+      # 2. Run Semgrep on C ruleset and output SARIF
+      - name: Run Semgrep (C SAST)
+        run: |
+          semgrep scan \
+            --config p/c \
+            --config p/security-audit \
+            --sarif \
+            -o semgrep.sarif
+
+      - name: save report as pipeline artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: semgrep.sarif
+          path: semgrep.sarif
+
+      # 3. Upload results to GitHub Security tab
+      - name: Upload SARIF report
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: semgrep.sarif
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
