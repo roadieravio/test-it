@@ -56,9 +56,9 @@ jobs:
       # sees the script, making the values trivially extractable.
       - name: Build firmware
         run: |
-          D_WIFI_SSID="${{ secrets.D_WIFI_SSID }}" \
-          D_WIFI_PASS="${{ secrets.D_WIFI_PASS }}" \
-          D_WIFI_USER="${{ secrets.D_WIFI_USER }}" \
+          D_WIFI_SSID="${{ secrets.WIFI_SSID }}" \
+          D_WIFI_PASS="${{ secrets.WIFI_PASS }}" \
+          D_WIFI_USER="${{ secrets.WIFI_USER }}" \
           GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
           pio run --environment m5stick-c
 
