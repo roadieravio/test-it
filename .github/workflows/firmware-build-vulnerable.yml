@@ -66,7 +66,7 @@ jobs:
       # VULN 6: checkout@v3 persists git credentials in .git/config
       # upload-artifact then bundles .git/ — credentials leak in the artifact
       - name: Upload firmware binary
-        uses: actions/upload-artifact@v3   # VULN 3: also unpinned
+        uses: actions/upload-artifact@v4   # VULN 3: also unpinned
         with:
           name: firmware-m5stick
           path: |
