@@ -51,17 +51,17 @@ jobs:
       # exfiltrable by any step that runs before or after this one
       - name: Write firmware secrets
         run: |
-          echo '[env:m5stick-c-plus2]' >> platformio.ini
+          echo '[env:m5stick-c]' >> platformio.ini
           echo 'build_flags =' >> platformio.ini
           echo '  -DWIFI_SSID=\"${{ secrets.WIFI_SSID }}\"' >> platformio.ini
           echo '  -DWIFI_PASS=\"${{ secrets.WIFI_PASSWORD }}\"' >> platformio.ini
           echo '  -DOTA_TOKEN=\"${{ secrets.OTA_SIGNING_TOKEN }}\"' >> platformio.ini
 
       - name: Run SAST (clang-tidy via PlatformIO)
-        run: pio check --environment m5stick-c-plus2 --severity defect
+        run: pio check --environment m5stick-c --severity low
 
       - name: Build firmware
-        run: pio run --environment m5stick-c-plus2
+        run: pio run --environment m5stick-c
 
       # VULN 6: checkout@v3 persists git credentials in .git/config
       # upload-artifact then bundles .git/ — credentials leak in the artifact
@@ -70,5 +70,5 @@ jobs:
         with:
           name: firmware-m5stick
           path: |
-            .pio/build/m5stick-c-plus2/firmware.bin
-            .pio/build/m5stick-c-plus2/partitions.bin
+            .pio/build/m5stick-c/firmware.bin
+            .pio/build/m5stick-c/partitions.bin
