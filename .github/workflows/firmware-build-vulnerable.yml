@@ -44,7 +44,6 @@ jobs:
       - name: Log build info
         run: |
           echo "Building PR: ${{ github.event.pull_request.title }}"
-          echo "Branch: ${{ github.event.pull_request.head.ref }}"
           echo "Author: ${{ github.event.pull_request.user.login }}"
 
       - name: Run SAST (clang-tidy via PlatformIO)
